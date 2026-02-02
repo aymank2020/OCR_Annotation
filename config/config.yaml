@@ -1,0 +1,305 @@
+# VideoX Action Recognition System - Configuration File
+# Last Updated: 2026-01-27
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+model:
+  # VideoX model (primary - falls back to CLIP if unavailable)
+  videox_model: "microsoft/videox-base"
+  
+  # CLIP model (fallback)
+  clip_model: "openai/clip-vit-base-patch32"
+  
+  # Model architecture
+  d_model: 768                    # Model dimension (768 for base, 1024 for large)
+  temporal_layers: 4              # Number of Transformer layers
+  num_frames: 16                  # Frames per video segment
+  frame_size: [224, 224]          # Frame resolution [H, W]
+  num_classes: 50                 # Number of action classes
+  dropout: 0.1                    # Dropout rate
+  
+  # Advanced options
+  use_temporal_attention: true
+  positional_encoding: "learnable"  # or "sinusoidal"
+
+# ============================================================================
+# DATA CONFIGURATION
+# ============================================================================
+data:
+  video_dir: "data/videos"
+  annotations_dir: "data/annotations"
+  splits_dir: "data/splits"
+  
+  # Data preprocessing
+  resize_strategy: "center_crop"  # or "resize", "random_crop"
+  augmentation: true
+  normalize: true
+  
+  # Train/Val split
+  train_split: 0.8
+  val_split: 0.2
+  random_seed: 42
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+training:
+  # Training parameters
+  num_epochs: 50
+  batch_size: 1                           # Lower for limited GPU memory
+  gradient_accumulation_steps: 8          # Effective batch size = 1 × 8 = 8
+  learning_rate: 0.00005                  # Lower LR for fine-tuning
+  weight_decay: 0.01
+  
+  # Optimization
+  optimizer: "adamw"                      # or "adam", "sgd"
+  scheduler: "cosine_warmup"              # or "step", "plateau"
+  warmup_epochs: 5
+  
+  # Mixed precision training
+  use_fp16: true                          # Recommended for GPU
+  
+  # Checkpointing
+  checkpoint_dir: "checkpoints"
+  save_every: 10                          # Save every N epochs
+  keep_last_n: 3                          # Keep only last N checkpoints
+  
+  # Backbone freezing
+  freeze_backbone: true                   # Freeze VideoX/CLIP initially
+  unfreeze_after_epoch: 20                # Then fine-tune
+  
+  # Early stopping
+  early_stopping: true
+  patience: 15                            # Stop if no improvement for N epochs
+  
+  # Logging
+  log_every: 10                           # Log every N batches
+  tensorboard: true
+  wandb: false                            # Set to true if using wandb
+
+# ============================================================================
+# INFERENCE CONFIGURATION
+# ============================================================================
+inference:
+  # Thresholds
+  confidence_threshold: 0.5               # Min confidence for predictions
+  boundary_start_threshold: 0.5           # Start boundary detection
+  boundary_end_threshold: 0.5             # End boundary detection
+  
+  # Segment constraints (Easy Mode)
+  min_action_duration: 8.0                # Min segment duration (seconds)
+  max_action_duration: 40.0               # Max segment duration (seconds)
+  
+  # Post-processing
+  merge_close_segments: true              # Merge segments close in time
+  merge_threshold: 2.0                    # Merge if gap < N seconds
+  
+  # Caption generation (VideoX only)
+  generate_captions: true
+  max_caption_length: 30
+  beam_size: 3
+
+# ============================================================================
+# EASY MODE RULES (Atlas Compliance)
+# ============================================================================
+easy_mode:
+  # Duration constraints
+  min_duration: 8                         # Minimum segment duration (seconds)
+  max_duration: 40                        # Maximum segment duration (seconds)
+  
+  # Text constraints
+  max_words: 25                           # Maximum words per label
+  max_chars: 200                          # Maximum characters per label
+  
+  # Grammar rules
+  use_ing_verbs: true                     # Use present participle (-ing)
+  allow_the: true                         # Allow "the" in descriptions
+  descriptive_only: true                  # Descriptive sentences, not commands
+  
+  # Forbidden words (context/intent/judgment)
+  forbidden_words:
+    - "next"          # Context from other segments
+    - "other"         # Context from other segments  
+    - "then"          # Sequential context
+    - "first"         # Sequential context
+    - "second"        # Sequential context
+    - "carefully"     # Intent inference
+    - "trying"        # Intent inference
+    - "preparing to"  # Intent inference
+    - "inspect"       # Visual judgment
+    - "examine"       # Visual judgment
+    - "check"         # Visual judgment
+  
+  # Principles
+  goal_oriented: true                     # Focus on goals, not motions
+  highest_level: true                     # Use highest accurate description
+  multiple_actions_ok: true               # OK if same outcome
+  literal_only: true                      # No assumptions or speculation
+
+# ============================================================================
+# API CONFIGURATION (for Flask server)
+# ============================================================================
+api:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  max_upload_size: 524288000              # 500 MB
+  allowed_extensions: [".mp4", ".avi", ".mov"]
+  cors_enabled: true
+  
+  # Rate limiting
+  rate_limit: true
+  max_requests_per_minute: 10
+
+# ============================================================================
+# ANNOTATION DATA
+# ============================================================================
+# Add your video annotations here in Atlas format
+# Format: START_TIME-END_TIME#ID Description
+# Example: 0:00.0-0:20.0#1 Assembling black ballpoint pens
+
+annotations_raw:
+  # ⚠️ IMPORTANT: Add annotations for at least 3-4 videos
+  # Video names must match your .mp4 files (without extension)
+  # Example: if your video is f1.mp4, use "f1:" below
+  
+  # Example 1
+  f1: |
+    0:00.0-0:20.0#1 Assembling black ballpoint pens
+    0:20.0-0:51.0#2 Assembling blue ballpoint pens
+    0:51.0-1:15.0#3 Packaging assembled pens into boxes
+  
+  # Example 2 (uncomment and modify)
+  # f2: |
+  #   0:00.0-0:15.0#1 Dusting the upper body of the black sneaker
+  #   0:15.0-0:30.0#2 Cleaning the sole of the sneaker
+  #   0:30.0-0:45.0#3 Placing sneaker back on display shelf
+  
+  # Example 3 (uncomment and modify)
+  # f3: |
+  #   0:00.0-0:10.0#1 Opening laptop case
+  #   0:10.0-0:25.0#2 Removing laptop from case
+  #   0:25.0-0:40.0#3 Setting up laptop on desk
+  
+  # Example 4 (uncomment and modify)
+  # f4: |
+  #   0:00.0-0:12.0#1 Picking up cleaning cloth
+  #   0:12.0-0:28.0#2 Wiping desk surface
+  #   0:28.0-0:45.0#3 Organizing items on desk
+  
+  # Add your own videos below:
+  # your_video_name: |
+  #   0:00.0-0:10.0#1 First action description
+  #   0:10.0-0:25.0#2 Second action description
+  #   0:25.0-0:40.0#3 Third action description
+
+  f1: |
+    0:00.0-0:20.0#1 Assembling black ballpoint pens
+    0:20.0-0:51.0#2 Assembling two additional blue ballpoint pens
+    0:51.0-1:15.0#3 Assembling other blue ballpoint pens
+  
+  f2: |
+    0:00.0-0:16.0#1 Placing blue shirt on ironing board
+    0:16.0-0:37.3#2 Smoothing and aligning blue shirt
+    0:37.3-0:46.3#3 Smoothing blue shirt
+    0:46.3-0:56.7#4 Folding blue shirt and adjusting on board
+    0:56.7-2:00.0#5 Smoothing and folding shirt on ironing table
+  
+  f3: |
+    0:00.0-0:10.1#1 Folding black shirt and picking up
+    0:10.1-0:15.5#2 Placing black shirt on bed
+    0:15.5-0:30.0#3 Picking up green pants and placing on table
+    0:30.0-0:59.4#4 Straightening and folding green pants on table
+    0:59.4-1:03.2#5 Picking up folded green pants
+    1:03.2-1:07.7#6 Placing folded pants on bed
+    1:07.7-1:13.5#7 Picking up and placing folded pants onto stack
+    1:13.5-1:21.2#8 Picking up garment and placing on table
+    1:21.2-1:48.7#9 Adjusting and folding garment on table
+    1:48.7-1:54.7#10 Picking up and placing folded garment on pile
+  
+  f4: |
+    0:00.0-0:05.9#1 Picking up garment and placing on ironing board
+    0:05.9-0:28.0#2 Straightening and adjusting garment on board
+    0:28.0-0:37.3#3 Folding and adjusting garment
+    0:37.3-0:49.0#4 Straightening and folding garment
+    0:49.0-0:55.6#5 Picking up folded garment and placing on couch
+    0:55.6-1:03.3#6 Picking up garment and placing on ironing board
+    1:03.3-1:13.6#7 Straightening out garment
+    1:13.6-1:18.0#8 Lifting and straightening garment on board
+    1:18.0-1:28.3#9 Adjusting and smoothing garment
+    1:28.3-1:43.6#10 Folding and adjusting garment
+    1:43.6-1:54.2#11 Folding and smoothing garment
+    1:54.2-1:59.4#12 Straightening and picking up folded garment
+  
+  f5: |
+    0:00.0-0:10.1#1 Adjusting and placing folded pink sweater on stack
+    0:10.1-0:19.0#2 Picking up and inspecting socks
+    0:19.0-0:40.6#3 Placing and folding both pairs of socks on board
+    0:40.6-0:47.2#4 Placing folded socks on bed
+    0:47.2-0:57.2#5 Picking up and adjusting socks
+    0:57.2-1:00.2#6 Adjusting socks on ironing board
+    1:00.2-1:22.2#7 Adjusting and folding pair of socks
+    1:22.2-1:26.6#8 Picking up folded socks and placing on bed
+    1:26.6-1:48.0#9 Picking up black shirt and placing on board
+    1:48.0-1:50.0#10 Straightening black shirt
+  
+  f6: |
+    0:00.0-0:10.3#1 Cleaning table with yellow cloth
+    0:10.3-0:24.1#2 Cleaning table with yellow cloth
+    0:24.1-0:35.0#3 Cleaning table with yellow cloth
+    0:35.0-1:27.7#4 Cleaning table with yellow cloth
+  
+  f7: |
+    0:00.0-0:11.3#1 Picking impurity from bird nest with tweezers
+    0:11.3-0:25.0#2 Picking impurity from bird nest with tweezers
+    0:25.0-0:41.3#3 Picking impurity from bird nest and discarding
+    0:41.3-1:01.6#4 Examining and picking impurity from bird nest
+    1:01.6-1:14.6#5 Picking impurity from bird nest
+    1:14.6-1:30.0#6 Discarding impurities and picking from bird nest
+
+
+# ============================================================================
+# ADVANCED OPTIONS
+# ============================================================================
+advanced:
+  # Multi-GPU training
+  use_ddp: false                          # Distributed Data Parallel
+  num_gpus: 1
+  
+  # Memory optimization
+  gradient_checkpointing: false
+  cpu_offload: false
+  
+  # Reproducibility
+  deterministic: true
+  benchmark: false
+  
+  # Debugging
+  debug_mode: false
+  profile: false
+  detect_anomaly: false
+
+# ============================================================================
+# PATHS
+# ============================================================================
+paths:
+  data_root: "data"
+  output_root: "outputs"
+  checkpoint_root: "checkpoints"
+  log_root: "logs"
+  cache_root: "cache"
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# - Adjust batch_size and gradient_accumulation_steps based on GPU memory
+# - For 8GB GPU: batch_size=1, gradient_accumulation_steps=8
+# - For 12GB GPU: batch_size=2, gradient_accumulation_steps=4
+# - For 16GB+ GPU: batch_size=4, gradient_accumulation_steps=2
+# 
+# - VideoX requires 12GB+ VRAM
+# - CLIP works well with 8GB+ VRAM
+# 
+# - Start with freeze_backbone=true, then unfreeze after ~20 epochs
+# - Lower learning_rate to 0.00001 when fine-tuning backbone

@@ -1,0 +1,60 @@
+# VideoX Action Recognition System - Requirements
+# Python 3.8+
+
+# Core Deep Learning
+torch>=2.6.0
+torchvision>=0.19.0
+torchaudio>=2.6.0
+
+# VideoX (optional - will fallback to CLIP if not available)
+# Install separately: pip install git+https://github.com/microsoft/VideoX.git
+
+# Transformers for CLIP/VideoX
+transformers>=4.30.0
+accelerate>=0.20.0
+
+# Video Processing
+opencv-python-headless>=4.8.0
+av>=10.0.0
+
+# Image Processing
+Pillow>=10.0.0
+scikit-image>=0.21.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+
+# NLP
+nltk>=3.8.0
+sentencepiece>=0.1.99
+
+# Configuration
+pyyaml>=6.0
+omegaconf>=2.3.0
+
+# Progress Bars & Logging
+tqdm>=4.65.0
+tensorboard>=2.13.0
+wandb>=0.15.0  # optional
+
+# Flask API
+flask>=2.3.0
+flask-cors>=4.0.0
+werkzeug>=2.3.0
+
+# Data Utilities
+requests>=2.31.0
+wget>=3.2
+
+# Testing
+pytest>=7.4.0
+
+# Code Quality
+black>=23.7.0  # optional
+flake8>=6.1.0  # optional
+
+# Jupyter (optional for notebooks)
+jupyter>=1.0.0  # optional
+ipykernel>=6.25.0  # optional
