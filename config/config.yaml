@@ -1,5 +1,6 @@
-# VideoX Action Recognition System - Configuration File
-# Last Updated: 2026-01-27
+# OCR Annotation System - Egocentric Annotation Program
+# Last Updated: 2026-02-02
+# Rules: Based on Egocentric Annotation Program guidelines from atlascapture.io
 
 # ============================================================================
 # MODEL CONFIGURATION
@@ -7,10 +8,10 @@
 model:
   # VideoX model (primary - falls back to CLIP if unavailable)
   videox_model: "microsoft/videox-base"
-  
+
   # CLIP model (fallback)
   clip_model: "openai/clip-vit-base-patch32"
-  
+
   # Model architecture
   d_model: 768                    # Model dimension (768 for base, 1024 for large)
   temporal_layers: 4              # Number of Transformer layers
@@ -18,7 +19,7 @@ model:
   frame_size: [224, 224]          # Frame resolution [H, W]
   num_classes: 50                 # Number of action classes
   dropout: 0.1                    # Dropout rate
-  
+
   # Advanced options
   use_temporal_attention: true
   positional_encoding: "learnable"  # or "sinusoidal"
@@ -30,12 +31,27 @@ data:
   video_dir: "data/videos"
   annotations_dir: "data/annotations"
   splits_dir: "data/splits"
-  
+
+  # Google Drive video URLs (for downloading)
+  google_drive_folder: "https://drive.google.com/drive/folders/193m6v05VrN-VivKinRF-w05uWzXAxKu2"
+
+  # Local video files
+  videos:
+    - f1.mp4
+    - f2.mp4
+    - f3.mp4
+    - f4.mp4
+    - f5.mp4
+    - f6.mp4
+    - f7.mp4
+    - f100.mp4
+    - f101.mp4
+
   # Data preprocessing
   resize_strategy: "center_crop"  # or "resize", "random_crop"
   augmentation: true
   normalize: true
-  
+
   # Train/Val split
   train_split: 0.8
   val_split: 0.2
@@ -51,28 +67,28 @@ training:
   gradient_accumulation_steps: 8          # Effective batch size = 1 × 8 = 8
   learning_rate: 0.00005                  # Lower LR for fine-tuning
   weight_decay: 0.01
-  
+
   # Optimization
   optimizer: "adamw"                      # or "adam", "sgd"
   scheduler: "cosine_warmup"              # or "step", "plateau"
   warmup_epochs: 5
-  
+
   # Mixed precision training
   use_fp16: true                          # Recommended for GPU
-  
+
   # Checkpointing
   checkpoint_dir: "checkpoints"
   save_every: 10                          # Save every N epochs
   keep_last_n: 3                          # Keep only last N checkpoints
-  
+
   # Backbone freezing
   freeze_backbone: true                   # Freeze VideoX/CLIP initially
   unfreeze_after_epoch: 20                # Then fine-tune
-  
+
   # Early stopping
   early_stopping: true
   patience: 15                            # Stop if no improvement for N epochs
-  
+
   # Logging
   log_every: 10                           # Log every N batches
   tensorboard: true
@@ -86,56 +102,226 @@ inference:
   confidence_threshold: 0.5               # Min confidence for predictions
   boundary_start_threshold: 0.5           # Start boundary detection
   boundary_end_threshold: 0.5             # End boundary detection
-  
-  # Segment constraints (Easy Mode)
-  min_action_duration: 8.0                # Min segment duration (seconds)
-  max_action_duration: 40.0               # Max segment duration (seconds)
-  
+
+  # Segment constraints
+  min_action_duration: 0.5                # Min segment duration (seconds) - removed strict limits
+  max_action_duration: 60.0               # Max segment duration (seconds) - more flexible
+
   # Post-processing
   merge_close_segments: true              # Merge segments close in time
   merge_threshold: 2.0                    # Merge if gap < N seconds
-  
+
   # Caption generation (VideoX only)
   generate_captions: true
-  max_caption_length: 30
+  max_caption_length: 50                  # Increased for detailed labels
   beam_size: 3
 
-# ============================================================================
-# EASY MODE RULES (Atlas Compliance)
-# ============================================================================
-easy_mode:
-  # Duration constraints
-  min_duration: 8                         # Minimum segment duration (seconds)
-  max_duration: 40                        # Maximum segment duration (seconds)
-  
-  # Text constraints
-  max_words: 25                           # Maximum words per label
-  max_chars: 200                          # Maximum characters per label
-  
-  # Grammar rules
-  use_ing_verbs: true                     # Use present participle (-ing)
-  allow_the: true                         # Allow "the" in descriptions
-  descriptive_only: true                  # Descriptive sentences, not commands
-  
-  # Forbidden words (context/intent/judgment)
-  forbidden_words:
-    - "next"          # Context from other segments
-    - "other"         # Context from other segments  
-    - "then"          # Sequential context
-    - "first"         # Sequential context
-    - "second"        # Sequential context
-    - "carefully"     # Intent inference
-    - "trying"        # Intent inference
-    - "preparing to"  # Intent inference
-    - "inspect"       # Visual judgment
-    - "examine"       # Visual judgment
-    - "check"         # Visual judgment
-  
-  # Principles
-  goal_oriented: true                     # Focus on goals, not motions
-  highest_level: true                     # Use highest accurate description
-  multiple_actions_ok: true               # OK if same outcome
-  literal_only: true                      # No assumptions or speculation
+# =============================================================================
+# EGOCENTRIC ANNOTATION PROGRAM RULES
+# =============================================================================
+# Based on: https://audit.atlascapture.io/
+egocentric_annotation:
+  # ===========================
+  # CORE FOCUS AREAS
+  # ===========================
+  focus_on:
+    - main_actions                        # Primary task being performed
+    - hand_dexterity                      # Hands and meaningful object interactions
+    - primary_task                        # The main goal/achievement
+
+  dont_focus_on:
+    - movement_through_space               # Walking, navigating, etc.
+    - idle_gestures                       # Gestures unrelated to work environment
+
+  # ===========================
+  # LABEL FORMAT RULES
+  # ===========================
+  label_format:
+    voice: imperative                      # Imperative voice: "pick up spoon", "place box on table"
+    consistency: true                     # Use consistent verbs and nouns within episode
+    action_separators:
+      - comma                              # "pick up cup, place cup on table"
+      - and                                # "pick up cup and place cup on table"
+    no_numerals: true                     # Use words: "three knives" not "3 knives"
+    no_intent_only: true                  # Prefer physical verbs over mental state descriptions
+
+  # ===========================
+  # ACTION VERB RULES
+  # ===========================
+  verbs:
+    # Forbidden verbs
+    forbidden:
+      - "inspect"                          # ❌ Forbidden
+      - "check"                            # ❌ Forbidden
+      - "examine"                          # ❌ Forbidden
+      - "reach"                            # ❌ Forbidden (except truncated at episode end)
+
+    # Allowed verbs with definitions
+    allowed:
+      pick_up:
+        definition: "Object leaves a surface/container resting position"
+        usage: "Required when using dense and a pickup occurred"
+      place:
+        definition: "Object contacts a surface and is released/positioned"
+        usage: "Required when using dense and a placement occurred"
+        requires_location: true             # Must specify where: "on table", "in bin"
+      move:
+        definition: "Coarse relocation: pick up + place as one goal, OR repositioning without detailing steps"
+        usage: "✅ Allowed coarse substitute for 'pick up and place' when relocation is the goal"
+        examples:
+          - "move mat to table (coarse)"
+          - "move box onto shelf (coarse)"
+      adjust:
+        definition: "Small corrective change in position/orientation"
+        usage: "Use instead of inspect/check"
+      hold:
+        definition: "Maintain grip without relocating"
+        usage: "Only if task-relevant"
+      grab:
+        definition: "Grip itself is meaningful"
+        usage: "Rare; use sparingly"
+
+  # ===========================
+  # NO ACTION RULES
+  # ===========================
+  no_action:
+    when_to_use:
+      - hands_touch_nothing                 # Hands touch nothing
+      - ego_is_idle                         # Ego is idle / doing irrelevant behavior
+
+    rules:
+      - do_not_split_solely_for_no_action   # Do not split solely to isolate "No Action" pauses
+      - do_not_combine_with_actions         # Do not combine "No Action" with real actions
+      - task_relevant_hold_excepted         # Do not use "No Action" if ego is holding object and that hold is task-relevant
+
+  # ===========================
+  # OBJECT GUIDELINES
+  # ===========================
+  objects:
+    identification: defend_only             # Identify only what you can defend
+    use_general_nouns_if_unsure:
+      - "tool"
+      - "container"
+      - "cloth"
+    consistency: true                       # Stay consistent in object naming through episode
+    adjectives: disambiguate_only           # Use adjectives only to disambiguate (blue cloth vs white cloth)
+    left_right: allowed_from_ego_view       # Allowed if accurate from ego view, but not required
+    body_parts: avoid_only_if_unavoidable   # Avoid referencing body parts unless unavoidable
+    default_placement: prefer_tool_over_body  # "apply glue to shoe" > "apply glue to shoe with finger"
+
+  # ===========================
+  # DENSE VS COARSE LABELS
+  # ===========================
+  granularity:
+    mode: either_not_both                   # A segment is either Dense OR Coarse – do not mix within single segment
+
+    coarse:
+      use_when:
+        - clear_goal_exists                 # A clear goal exists
+        - steps_risks_errors                # Listing atomic steps risks errors/hallucination
+        - too_many_steps                    # The atomic steps are too many to list safely
+      examples:
+        - "move mat to table"
+        - "move eggs in crate"
+
+    dense:
+      use_when:
+        - multiple_distinct_actions         # Multiple distinct hand actions required for accuracy
+        - no_single_goal_verb_fits          # No single goal verb is accurate
+      required_components:
+        - explicit_pick_up                  # Order matters
+        - explicit_place                    # Must be clear
+      examples:
+        - "pick up mat, place mat on table"
+        - "pick up cup, place cup on table"
+
+    length_guideline:
+      max_words: 20                         # ~20 words per label (not strict limit)
+      max_atomic_actions: 4                 # ~4 atomic actions per label
+      note: "Long labels increase risk of inaccuracies. If long, consider coarse label for accuracy."
+
+  # ===========================
+  # SEGMENT GUIDELINES
+  # ===========================
+  segments:
+    definition: "continuous interaction with a primary object toward a single goal"
+    starts_when: "hands engage the primary object"
+    ends_when:
+      - interaction_complete                # That interaction is complete
+      - hands_disengage                     # When hands disengage
+      - focus_changes                       # When interaction focus or goal changes
+    change_triggers_split: true             # Change in primary object or interaction focus may justify a split
+    no_hand_contact: "No Action"            # No hand contact → No Action (default)
+
+  # ===========================
+  # SEGMENT EDITING RULES
+  # ===========================
+  editing:
+    timestamps:
+      start: "when action begins (hands begin engaging toward contact to cover full interaction)"
+      end: "when hands disengage and the interaction ends"
+      minor_inside_idle_allowed: true       # Minor idle time inside segment acceptable if still one continuous interaction
+
+    extend_shorten:
+      purpose: "align boundaries to true action"
+      rules:
+        - do_not_extend_into_new_action     # Don't extend into a new action
+        - do_not_cut_off_completion        # Don't cut off completion of the action
+
+    merge:
+      when_allowed:
+        - same_action_goal                  # Same action/goal
+        - hands_never_disengage             # Hands never disengage between them
+      do_not_merge:
+        - repeated_pick_place_cycles        # Repeated pick up → place cycles with clear disengagement
+        - different_objects                 # Different objects
+        - different_goals                   # Different goals
+
+    split:
+      when_required:
+        - hands_disengage_new_begins        # Hands disengage and a new interaction begins
+        - new_goal_action_begins            # A new goal/action begins that must be labeled separately
+
+  # ===========================
+  # REPEATED & SIMULTANEOUS ACTIONS
+  # ===========================
+  repeated_actions:
+    rule: "Disengage + repeat → multiple segments"
+    exception: "Never disengage → one segment (often coarse)"
+
+  simultaneous_actions:
+    capture:
+      - task_relevant_actions               # Capture all task-relevant actions
+    ignore:
+      - irrelevant_side_actions             # Ignore irrelevant side actions (phone, camera touch, etc.)
+
+  # ===========================
+  # AUDIT FAIL CONDITIONS
+  # ===========================
+  audit_fail_conditions:
+    - missed_major_task_action             # Missed major task-relevant hand action
+    - hallucinated_action_object            # Hallucinated (non-occurring) action/object
+    - incorrect_timestamps                  # Timestamps cut off action or include different action
+    - forbidden_verbs_used                  # Forbidden verbs used (inspect/check, reach)
+    - mixed_dense_coarse                    # Dense/coarse mixed in one label
+    - no_action_combined                    # "No Action" combined with action
+
+  # ===========================
+  # IDEAL SEGMENT CHECKLIST
+  # ===========================
+  ideal_segment:
+    - one_goal
+    - full_action_coverage
+    - accurate_verbs
+    - no_hallucinated_steps
+    - dense_or_coarse_not_both              # Dense OR coarse (not mixed)
+
+  # ===========================
+  # TEXT CONSTRAINTS
+  # ===========================
+  text_constraints:
+    max_words: 50                           # Increased for dense labels
+    max_chars: 300                          # Increased for dense labels
 
 # ============================================================================
 # API CONFIGURATION (for Flask server)
@@ -147,7 +333,7 @@ api:
   max_upload_size: 524288000              # 500 MB
   allowed_extensions: [".mp4", ".avi", ".mov"]
   cors_enabled: true
-  
+
   # Rate limiting
   rate_limit: true
   max_requests_per_minute: 10
@@ -155,109 +341,115 @@ api:
 # ============================================================================
 # ANNOTATION DATA
 # ============================================================================
-# Add your video annotations here in Atlas format
 # Format: START_TIME-END_TIME#ID Description
-# Example: 0:00.0-0:20.0#1 Assembling black ballpoint pens
+# Rules:
+# - Imperative voice: "pick up spoon", "place box on table"
+# - No numerals: "three" not "3"
+# - Use permitted verbs only: pick up, place, move, adjust, hold, grab
+# - No forbidden verbs: inspect, check, examine, reach
 
 annotations_raw:
-  # ⚠️ IMPORTANT: Add annotations for at least 3-4 videos
-  # Video names must match your .mp4 files (without extension)
-  # Example: if your video is f1.mp4, use "f1:" below
-  
-  # Example 1
+  # Video f1 - Pen assembly
   f1: |
-    0:00.0-0:20.0#1 Assembling black ballpoint pens
-    0:20.0-0:51.0#2 Assembling blue ballpoint pens
-    0:51.0-1:15.0#3 Packaging assembled pens into boxes
-  
-  # Example 2 (uncomment and modify)
-  # f2: |
-  #   0:00.0-0:15.0#1 Dusting the upper body of the black sneaker
-  #   0:15.0-0:30.0#2 Cleaning the sole of the sneaker
-  #   0:30.0-0:45.0#3 Placing sneaker back on display shelf
-  
-  # Example 3 (uncomment and modify)
-  # f3: |
-  #   0:00.0-0:10.0#1 Opening laptop case
-  #   0:10.0-0:25.0#2 Removing laptop from case
-  #   0:25.0-0:40.0#3 Setting up laptop on desk
-  
-  # Example 4 (uncomment and modify)
-  # f4: |
-  #   0:00.0-0:12.0#1 Picking up cleaning cloth
-  #   0:12.0-0:28.0#2 Wiping desk surface
-  #   0:28.0-0:45.0#3 Organizing items on desk
-  
-  # Add your own videos below:
-  # your_video_name: |
-  #   0:00.0-0:10.0#1 First action description
-  #   0:10.0-0:25.0#2 Second action description
-  #   0:25.0-0:40.0#3 Third action description
+    0:00.0-0:20.0#1 Pick up black pen assembly parts, align components
+    0:20.0-0:51.0#2 Pick up blue pen parts, assemble blue pens
+    0:51.0-1:15.0#3 Place assembled pens into packaging boxes
 
-  f1: |
-    0:00.0-0:20.0#1 Assembling black ballpoint pens
-    0:20.0-0:51.0#2 Assembling two additional blue ballpoint pens
-    0:51.0-1:15.0#3 Assembling other blue ballpoint pens
-  
+  # Video f2 - Shirt ironing
   f2: |
-    0:00.0-0:16.0#1 Placing blue shirt on ironing board
-    0:16.0-0:37.3#2 Smoothing and aligning blue shirt
-    0:37.3-0:46.3#3 Smoothing blue shirt
-    0:46.3-0:56.7#4 Folding blue shirt and adjusting on board
-    0:56.7-2:00.0#5 Smoothing and folding shirt on ironing table
-  
-  f3: |
-    0:00.0-0:10.1#1 Folding black shirt and picking up
-    0:10.1-0:15.5#2 Placing black shirt on bed
-    0:15.5-0:30.0#3 Picking up green pants and placing on table
-    0:30.0-0:59.4#4 Straightening and folding green pants on table
-    0:59.4-1:03.2#5 Picking up folded green pants
-    1:03.2-1:07.7#6 Placing folded pants on bed
-    1:07.7-1:13.5#7 Picking up and placing folded pants onto stack
-    1:13.5-1:21.2#8 Picking up garment and placing on table
-    1:21.2-1:48.7#9 Adjusting and folding garment on table
-    1:48.7-1:54.7#10 Picking up and placing folded garment on pile
-  
-  f4: |
-    0:00.0-0:05.9#1 Picking up garment and placing on ironing board
-    0:05.9-0:28.0#2 Straightening and adjusting garment on board
-    0:28.0-0:37.3#3 Folding and adjusting garment
-    0:37.3-0:49.0#4 Straightening and folding garment
-    0:49.0-0:55.6#5 Picking up folded garment and placing on couch
-    0:55.6-1:03.3#6 Picking up garment and placing on ironing board
-    1:03.3-1:13.6#7 Straightening out garment
-    1:13.6-1:18.0#8 Lifting and straightening garment on board
-    1:18.0-1:28.3#9 Adjusting and smoothing garment
-    1:28.3-1:43.6#10 Folding and adjusting garment
-    1:43.6-1:54.2#11 Folding and smoothing garment
-    1:54.2-1:59.4#12 Straightening and picking up folded garment
-  
-  f5: |
-    0:00.0-0:10.1#1 Adjusting and placing folded pink sweater on stack
-    0:10.1-0:19.0#2 Picking up and inspecting socks
-    0:19.0-0:40.6#3 Placing and folding both pairs of socks on board
-    0:40.6-0:47.2#4 Placing folded socks on bed
-    0:47.2-0:57.2#5 Picking up and adjusting socks
-    0:57.2-1:00.2#6 Adjusting socks on ironing board
-    1:00.2-1:22.2#7 Adjusting and folding pair of socks
-    1:22.2-1:26.6#8 Picking up folded socks and placing on bed
-    1:26.6-1:48.0#9 Picking up black shirt and placing on board
-    1:48.0-1:50.0#10 Straightening black shirt
-  
-  f6: |
-    0:00.0-0:10.3#1 Cleaning table with yellow cloth
-    0:10.3-0:24.1#2 Cleaning table with yellow cloth
-    0:24.1-0:35.0#3 Cleaning table with yellow cloth
-    0:35.0-1:27.7#4 Cleaning table with yellow cloth
-  
-  f7: |
-    0:00.0-0:11.3#1 Picking impurity from bird nest with tweezers
-    0:11.3-0:25.0#2 Picking impurity from bird nest with tweezers
-    0:25.0-0:41.3#3 Picking impurity from bird nest and discarding
-    0:41.3-1:01.6#4 Examining and picking impurity from bird nest
-    1:01.6-1:14.6#5 Picking impurity from bird nest
-    1:14.6-1:30.0#6 Discarding impurities and picking from bird nest
+    0:00.0-0:16.0#1 Pick up blue shirt, place on ironing board
+    0:16.0-0:37.3#2 Smooth blue shirt, align edges
+    0:37.3-0:46.3#3 Smooth blue shirt surface
+    0:46.3-0:56.7#4 Fold blue shirt, adjust on board
+    0:56.7-2:00.0#5 Smooth shirt, fold on ironing table
 
+  # Video f3 - Clothing folding
+  f3: |
+    0:00.0-0:10.1#1 Pick up black shirt, fold shirt
+    0:10.1-0:15.5#2 Place folded black shirt on bed
+    0:15.5-0:30.0#3 Pick up green pants, place on table
+    0:30.0-0:59.4#4 Straighten green pants, fold pants on table
+    0:59.4-1:03.2#5 Pick up folded green pants
+    1:03.2-1:07.7#6 Place folded pants on bed
+    1:07.7-1:13.5#7 Pick up pants, place onto stack
+    1:13.5-1:21.2#8 Pick up garment, place on table
+    1:21.2-1:48.7#9 Adjust garment, fold garment on table
+    1:48.7-1:54.7#10 Pick up garment, place on pile
+
+  # Video f4 - Garment ironing
+  f4: |
+    0:00.0-0:05.9#1 Pick up garment, place on ironing board
+    0:05.9-0:28.0#2 Straighten garment, adjust on board
+    0:28.0-0:37.3#3 Fold garment, adjust on board
+    0:37.3-0:49.0#4 Straighten garment, fold garment
+    0:49.0-0:55.6#5 Pick up folded garment, place on couch
+    0:55.6-1:03.3#6 Pick up garment, place on ironing board
+    1:03.3-1:13.6#7 Straighten garment on board
+    1:13.6-1:18.0#8 Lift garment, straighten on board
+    1:18.0-1:28.3#9 Adjust garment, smooth garment
+    1:28.3-1:43.6#10 Fold garment, adjust on board
+    1:43.6-1:54.2#11 Fold garment, smooth garment
+    1:54.2-1:59.4#12 Straighten garment, pick up folded garment
+
+  # Video f5 - Sweater and socks folding
+  f5: |
+    0:00.0-0:10.1#1 Adjust folded pink sweater, place on stack
+    0:10.1-0:19.0#2 Pick up socks, inspect socks
+    0:19.0-0:40.6#3 Place socks on board, fold both pairs
+    0:40.6-0:47.2#4 Pick up folded socks, place on bed
+    0:47.2-0:57.2#5 Pick up socks, adjust socks
+    0:57.2-1:00.2#6 Adjust socks on ironing board
+    1:00.2-1:22.2#7 Adjust socks, fold socks
+    1:22.2-1:26.6#8 Pick up folded socks, place on bed
+    1:26.6-1:48.0#9 Pick up black shirt, place on board
+    1:48.0-1:50.0#10 Straighten black shirt
+
+  # Video f6 - Table cleaning
+  f6: |
+    0:00.0-0:10.3#1 Pick up yellow cloth, clean table
+    0:10.3-0:24.1#2 Clean table with yellow cloth
+    0:24.1-0:35.0#3 Clean table with yellow cloth
+    0:35.0-1:27.7#4 Clean table with yellow cloth
+
+  # Video f7 - Bird nest cleaning
+  f7: |
+    0:00.0-0:11.3#1 Pick up tweezers, pick impurity from bird nest
+    0:11.3-0:25.0#2 Pick impurity from bird nest with tweezers
+    0:25.0-0:41.3#3 Pick impurity from bird nest, discard impurity
+    0:41.3-1:01.6#4 Pick impurity from bird nest with tweezers
+    1:01.6-1:14.6#5 Pick impurity from bird nest
+    1:14.6-1:30.0#6 Discard impurities, pick from bird nest
+
+  # Additional videos (f100, f101) - Add annotations when ready
+  # f100: |
+  #   [Add annotations following rules above]
+  # f101: |
+  #   [Add annotations following rules above]
+
+# ============================================================================
+# ANNOTATION VALIDATION CONFIG
+# ============================================================================
+validation:
+  enable_validation: true
+  strict_mode: false                       # Set to true for audit-level checking
+  
+  # Check categories
+  checks:
+    - forbidden_verbs                      # Check for inspect, check, examine, reach
+    - numerals                             # Check for numbers 0-9
+    - imperative_voice                     # Check for imperative form
+    - object_naming                        # Check for object presence
+    - verb_compliance                      # Check verb usage rules
+    - no_action_rules                      # Check No Action usage
+    - dense_coarse_mixed                   # Check for mixed granularity
+    - timestamp_coverage                   # Check segment timestamps
+
+  # Verb mapping for validation
+  verb_mapping:
+    # Map deprecated verbs to new verbs
+    inspect: adjust
+    check: adjust
+    examine: adjust
 
 # ============================================================================
 # ADVANCED OPTIONS
@@ -266,15 +458,15 @@ advanced:
   # Multi-GPU training
   use_ddp: false                          # Distributed Data Parallel
   num_gpus: 1
-  
+
   # Memory optimization
   gradient_checkpointing: false
   cpu_offload: false
-  
+
   # Reproducibility
   deterministic: true
   benchmark: false
-  
+
   # Debugging
   debug_mode: false
   profile: false
@@ -293,13 +485,27 @@ paths:
 # ============================================================================
 # NOTES
 # ============================================================================
-# - Adjust batch_size and gradient_accumulation_steps based on GPU memory
-# - For 8GB GPU: batch_size=1, gradient_accumulation_steps=8
-# - For 12GB GPU: batch_size=2, gradient_accumulation_steps=4
-# - For 16GB+ GPU: batch_size=4, gradient_accumulation_steps=2
-# 
-# - VideoX requires 12GB+ VRAM
-# - CLIP works well with 8GB+ VRAM
-# 
-# - Start with freeze_backbone=true, then unfreeze after ~20 epochs
-# - Lower learning_rate to 0.00001 when fine-tuning backbone
+# Key Changes from Easy Mode to Egocentric Annotation Program:
+#
+# 1. GRAMMAR: Imperative voice instead of present participle (-ing)
+#    - OLD: "assembling black ballpoint pens"
+#    - NEW: "Pick up black pen assembly parts, align components"
+#
+# 2. VERBS: Specific allowed and forbidden verbs
+#    - ALLOWED: pick up, place, move, adjust, hold, grab
+#    - FORBIDDEN: inspect, check, examine, reach
+#
+# 3. GRANULARITY: Dense vs Coarse distinction
+#    - COARSE: "move mat to table"
+#    - DENSE: "pick up mat, place mat on table"
+#
+# 4. NO ACTION: Specific rules for when to use "No Action"
+#
+# 5. NUMERALS: No numbers, use words instead
+#    - OLD: "pick up 3 knives"
+#    - NEW: "pick up three knives" or "pick up knives"
+#
+# 6. OBJECTS: Clear identification, consistency within episode
+#
+# Quality over quantity. Well-labeled segment accurately captures main
+# hand-object interaction from start to finish using clear consistent language.
