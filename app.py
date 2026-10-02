@@ -10,12 +10,18 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 import yaml
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 from werkzeug.utils import secure_filename
 import json
 from datetime import datetime
 import cv2
 import random
+import math
+import uuid
+from werkzeug.exceptions import HTTPException
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
@@ -29,6 +35,7 @@ UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs/api_predictions'
 ALLOWED_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -111,6 +118,9 @@ def initialize_model():
     global model, inference_engine, config, device, DEMO_MODE
 
     try:
+        if torch is None:
+            DEMO_MODE = True
+            return True
         print("=" * 70)
         print("Atlas Action Recognition API Server")
         print("=" * 70)
@@ -230,7 +240,7 @@ def status():
         'demo_mode': DEMO_MODE,
         'model_loaded': inference_engine is not None,
         'device': device,
-        'cuda_available': torch.cuda.is_available(),
+        'cuda_available': bool(torch is not None and torch.cuda.is_available()),
         'checkpoint_loaded': inference_engine is not None,
         'message': 'Demo Mode - Generating test annotations' if DEMO_MODE else 'Model Mode - Using trained model'
     })
@@ -271,8 +281,7 @@ def annotate_video():
 
         # Save file
         filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        saved_filename = f"{timestamp}_{filename}"
+        saved_filename = f"{uuid.uuid4().hex}_{filename}"
         filepath = os.path.join(UPLOAD_FOLDER, saved_filename)
 
         file.save(filepath)
@@ -281,6 +290,9 @@ def annotate_video():
 
         # Get video duration
         duration = get_video_duration(filepath)
+        if not math.isfinite(duration) or duration <= 0:
+            os.remove(filepath)
+            return jsonify({'error': 'Video is unreadable or has no valid duration'}), 400
         print(f"✅ Video duration: {duration:.1f} seconds")
 
         # Process video (Demo or Real)
@@ -306,6 +318,8 @@ def annotate_video():
 
             print("🤖 Processing with trained model")
             result = inference_engine.predict_video(filepath)
+            result.setdefault('video_id', Path(filepath).stem)
+            result.setdefault('filename', filename)
             result['demo_mode'] = False
 
         # Save results
@@ -330,6 +344,8 @@ def annotate_video():
             'message': 'Demo annotations' if DEMO_MODE else 'Model predictions'
         })
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Error processing video: {e}")
         import traceback
