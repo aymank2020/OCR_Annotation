@@ -6,3 +6,7 @@ data/videos/
 *.dll
 *.mp4
 .env
+__pycache__/
+.pytest_cache/
+uploads/
+outputs/api_predictions/
